@@ -2708,7 +2708,7 @@ Selalu jawab singkat, padat, dan natural. Saat menyebutkan angka harga/cuaca dar
             body.tools = EIJI_TOOLS;
             body.tool_choice = 'auto';
         }
-        const res = await fetch('/api/openrouter', {
+        const res = await fetch('/api/groq', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

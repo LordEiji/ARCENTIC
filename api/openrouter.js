@@ -8,19 +8,16 @@ export default async function handler(req, res) {
 
     try {
         const body = req.body;
-        body.model = 'meta-llama/llama-3.3-70b-instruct:free';
+        body.model = 'llama-3.3-70b-versatile';
 
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + process.env.OPENROUTER_API_KEY,
-                'HTTP-Referer': 'https://arcentic.vercel.app',
-                'X-Title': 'ARCENTIC'
+                'Authorization': 'Bearer ' + process.env.GROQ_API_KEY
             },
             body: JSON.stringify(body)
         });
-
         const data = await response.json();
         return res.status(response.status).json(data);
     } catch (err) {
