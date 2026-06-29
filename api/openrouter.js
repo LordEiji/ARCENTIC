@@ -8,7 +8,7 @@ export default async function handler(req, res) {
 
     try {
         const body = req.body;
-        body.model = 'google/gemini-2.0-flash-exp:free';
+        body.model = 'meta-llama/llama-3.3-70b-instruct:free';
 
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
