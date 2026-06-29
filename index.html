@@ -2638,11 +2638,10 @@ Selalu jawab singkat, padat, dan natural. Saat menyebutkan angka harga/cuaca dar
 
     async function tool_web_search(query) {
         try {
-            const res = await fetch('https://api.tavily.com/search', {
+            const res = await fetch('/api/tavily', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + TAVILY_API_KEY
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     query: query || '',
@@ -2709,11 +2708,10 @@ Selalu jawab singkat, padat, dan natural. Saat menyebutkan angka harga/cuaca dar
             body.tools = EIJI_TOOLS;
             body.tool_choice = 'auto';
         }
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        const res = await fetch('/api/groq', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Authorization': 'Bearer ' + GROQ_API_KEY
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify(body)
         });
