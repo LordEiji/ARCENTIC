@@ -2700,7 +2700,7 @@ Selalu jawab singkat, padat, dan natural. Saat menyebutkan angka harga/cuaca dar
     async function eijiCallGroq(messages, useTools) {
         if (useTools === undefined) useTools = true;
         const body = {
-            model: 'llama-3.3-70b-versatile',
+            model: 'gemini-2.0-flash',
             max_tokens: 1024,
             messages
         };
@@ -2708,7 +2708,7 @@ Selalu jawab singkat, padat, dan natural. Saat menyebutkan angka harga/cuaca dar
             body.tools = EIJI_TOOLS;
             body.tool_choice = 'auto';
         }
-        const res = await fetch('/api/groq', {
+        const res = await fetch('/api/gemini', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -2717,8 +2717,8 @@ Selalu jawab singkat, padat, dan natural. Saat menyebutkan angka harga/cuaca dar
         });
         const json = await res.json();
         if (!res.ok) {
-            const apiMsg = (json && json.error && json.error.message) ? json.error.message : JSON.stringify(json);
-            throw new Error('Groq API ' + res.status + ': ' + apiMsg);
+            const apiMsg = (json && json.error) ? json.error : JSON.stringify(json);
+            throw new Error('Gemini API ' + res.status + ': ' + apiMsg);
         }
         return json;
     }
