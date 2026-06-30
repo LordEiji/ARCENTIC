@@ -440,7 +440,6 @@ nav button.glass { color: #fff; }
         <button id="navPortfolio" onclick="showPortfolio()" class="px-6 py-3 rounded-xl">Portfolio</button>
         <button id="navSwap" onclick="showSwap()" class="px-6 py-3 rounded-xl">Swap</button>
         <button id="navPools" onclick="showPools()" class="px-6 py-3 rounded-xl">Liquidity</button>
-        <button id="navEiji" onclick="showEiji()" class="px-6 py-3 rounded-xl" style="background:linear-gradient(135deg,#3478ff22,#8b5cf622);border:1px solid rgba(92,120,255,.35);">✦ Eiji</button>
     </nav>
     <div class="flex gap-2 sm:gap-3 items-center flex-shrink-0">
         <div class="hidden sm:block glass px-4 py-3 rounded-xl text-sm whitespace-nowrap">🟢 ARC TESTNET</div>
@@ -1903,6 +1902,25 @@ nav button.glass { color: #fff; }
         window.ethereum.on('chainChanged', () => window.location.reload());
     }
 
+    /* ── Auto-reconnect wallet on page load/refresh ──
+       eth_accounts (tanpa "request") tidak memunculkan popup MetaMask,
+       cuma mengecek apakah situs ini sudah pernah diizinkan sebelumnya.
+       Kalau ya, langsung connect ulang otomatis tanpa user harus klik lagi. */
+    async function tryAutoReconnect() {
+        if (!window.ethereum) return;
+        try {
+            const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+            if (accounts && accounts.length > 0) {
+                const bal = await fetchBalance(accounts[0]);
+                setConnectedUI(accounts[0], bal);
+            }
+        } catch (err) {
+            console.warn('Auto-reconnect wallet gagal:', err);
+        }
+    }
+    tryAutoReconnect();
+
+
     /* ══════════════════════════════════════════════════
        POOLS
     ══════════════════════════════════════════════════ */
@@ -2731,7 +2749,53 @@ Selalu jawab singkat, padat, dan natural. Saat menyebutkan angka harga/cuaca dar
             return await eijiCallGroq(messages, true);
         } catch (err) {
             if (err && /failed to call a function/i.test(err.message)) {
-                return await eijiCallGroq(messages, false);
+                try {
+                    return await eijiCallGroq(messages, false);
+                } catch (err2) {
+                    console.warn('Groq (no-tools) juga gagal, fallback ke Gemini:', err2.message);
+                    return await eijiCallGeminiSafe(messages);
+                }
+            }
+            // Groq down / rate-limited / 5xx / network error -> fallback diam-diam ke Gemini
+            console.warn('Groq gagal (' + err.message + '), fallback ke Gemini...');
+            return await eijiCallGeminiSafe(messages);
+        }
+    }
+
+    /* Fallback provider: Gemini (free tier kuota harian besar). Endpoint backend
+       /api/gemini diharapkan menerima body OpenAI-style yang sama persis dengan
+       /api/groq, dan mengembalikan response berformat OpenAI-compatible juga,
+       supaya semua logic tool-calling di atas tetap jalan tanpa perubahan. */
+    async function eijiCallGemini(messages, useTools) {
+        if (useTools === undefined) useTools = true;
+        const body = {
+            model: 'gemini-2.0-flash',
+            max_tokens: 1024,
+            messages
+        };
+        if (useTools) {
+            body.tools = EIJI_TOOLS;
+            body.tool_choice = 'auto';
+        }
+        const res = await fetch('/api/gemini', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const json = await res.json();
+        if (!res.ok) {
+            const apiMsg = (json && json.error && json.error.message) ? json.error.message : JSON.stringify(json);
+            throw new Error('Gemini API ' + res.status + ': ' + apiMsg);
+        }
+        return json;
+    }
+
+    async function eijiCallGeminiSafe(messages) {
+        try {
+            return await eijiCallGemini(messages, true);
+        } catch (err) {
+            if (err && /failed to call a function/i.test(err.message)) {
+                return await eijiCallGemini(messages, false);
             }
             throw err;
         }
