@@ -342,6 +342,19 @@ nav button.glass { color: #fff; }
 }
 #poolsView.open { transform: translateX(0); }
 
+/* -- Lend & Borrow overlay (slide from right, same as poolsView) -- */
+#lendView {
+    position: fixed; inset: 0; z-index: 200;
+    background: #040816;
+    transform: translateX(100%);
+    transition: transform .38s cubic-bezier(.4,0,.2,1);
+    overflow-y: auto;
+    will-change: transform;
+    -webkit-overflow-scrolling: touch;
+}
+#lendView.open { transform: translateX(0); }
+
+
 .pool-card {
     background: rgba(7,12,35,.75); 
     border: 1px solid rgba(92,120,255,.18);
@@ -440,6 +453,7 @@ nav button.glass { color: #fff; }
         <button id="navPortfolio" onclick="showPortfolio()" class="px-6 py-3 rounded-xl">Portfolio</button>
         <button id="navSwap" onclick="showSwap()" class="px-6 py-3 rounded-xl">Swap</button>
         <button id="navPools" onclick="showPools()" class="px-6 py-3 rounded-xl">Liquidity</button>
+        <button id="navLend" onclick="showLend()" class="px-6 py-3 rounded-xl">Lend & Borrow</button>
     </nav>
     <div class="flex gap-2 sm:gap-3 items-center flex-shrink-0">
         <div class="hidden sm:block glass px-4 py-3 rounded-xl text-sm whitespace-nowrap">🟢 ARC TESTNET</div>
@@ -453,6 +467,7 @@ nav button.glass { color: #fff; }
     <button onclick="showPortfolio(); toggleMobileNav()" class="text-left px-4 py-3 rounded-xl hover:bg-white/5 transition">Portfolio</button>
     <button onclick="showSwap(); toggleMobileNav()" class="text-left px-4 py-3 rounded-xl hover:bg-white/5 transition">Swap</button>
     <button onclick="showPools(); toggleMobileNav()" class="text-left px-4 py-3 rounded-xl hover:bg-white/5 transition">Liquidity</button>
+    <button onclick="showLend(); toggleMobileNav()" class="text-left px-4 py-3 rounded-xl hover:bg-white/5 transition">Lend &amp; Borrow</button>
 </div>
 </header>
 
@@ -1185,6 +1200,195 @@ nav button.glass { color: #fff; }
     </div>
 </div>
 
+<!-- ============ LEND & BORROW VIEW ============ -->
+<div id="lendView" class="gridbg">
+    <div class="orb1"></div><div class="orb2"></div>
+
+    <!-- Header same as poolsView -->
+    <div class="pf-header">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-5 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3 sm:gap-4 min-w-0">
+                <button onclick="showHome()" class="glass w-10 h-10 rounded-xl flex items-center justify-center text-lg hover:border-white/30 transition flex-shrink-0">&#8592;</button>
+                <div class="min-w-0">
+                    <h2 class="text-lg sm:text-2xl font-black leading-tight">Lend &amp; Borrow</h2>
+                    <p class="text-gray-400 text-xs hidden sm:block">ARC Testnet &middot; cirBTC collateral &middot; USDC loan</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 sm:gap-3">
+                <div id="lendHealthBadge" class="pool-badge" style="display:none; color:#4ade80;">HF: <span id="lendHFVal">—</span></div>
+                <div class="glass px-2.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm whitespace-nowrap"><span class="sm:hidden">🟢</span><span class="hidden sm:inline">🟢 ARC TESTNET</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+
+        <!-- Stats bar identical to poolsView -->
+        <div class="grid grid-cols-3 gap-2 sm:gap-4 mb-10">
+            <div class="pool-stat-pill">
+                <div class="text-gray-400 text-xs mb-1">Your Collateral</div>
+                <div class="text-lg sm:text-2xl font-black" id="lendCollateral">—</div>
+                <div class="text-gray-500 text-xs mt-0.5">cirBTC</div>
+            </div>
+            <div class="pool-stat-pill">
+                <div class="text-gray-400 text-xs mb-1">Borrowed</div>
+                <div class="text-lg sm:text-2xl font-black" id="lendBorrowed">—</div>
+                <div class="text-gray-500 text-xs mt-0.5">USDC</div>
+            </div>
+            <div class="pool-stat-pill">
+                <div class="text-gray-400 text-xs mb-1">Max Borrow</div>
+                <div class="text-lg sm:text-2xl font-black" id="lendMaxBorrow">—</div>
+                <div class="text-gray-500 text-xs mt-0.5">USDC (50%)</div>
+            </div>
+        </div>
+
+        <!-- Health Factor Bar (shows when have a loan) -->
+        <div class="pool-card mb-6" id="lendHFPanel" style="display:none; padding:20px 28px;">
+            <div class="flex justify-between items-center mb-2">
+                <span class="font-bold text-sm">Health Factor</span>
+                <span class="font-black" id="lendHFLabel">—</span>
+            </div>
+            <div class="health-bar-track">
+                <div class="health-bar-fill" id="lendHFBar" style="width:0%"></div>
+            </div>
+            <div class="flex justify-between text-xs mt-2 text-gray-500">
+                <span class="text-red-400">Liquidation risk &lt;1.0</span>
+                <span class="text-green-400">Safe &gt;1.5</span>
+            </div>
+        </div>
+
+        <!-- Main card same style as pool-card -->
+        <div class="pool-card">
+
+            <!-- Token pair header same as pool cards -->
+            <div class="flex flex-wrap items-center justify-between gap-4 mb-5">
+                <div class="flex items-center gap-3">
+                    <div class="flex">
+                        <div style="width:42px;height:42px;border-radius:50%;background:rgba(247,147,26,.15);border:1px solid rgba(247,147,26,.4);display:flex;align-items:center;justify-content:center;font-size:22px;z-index:1;">₿</div>
+                        <div style="width:42px;height:42px;border-radius:50%;background:rgba(39,117,202,.2);border:1px solid rgba(39,117,202,.5);display:flex;align-items:center;justify-content:center;font-size:20px;margin-left:-12px;overflow:hidden;"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiMyNzc1Q0EiLz48cGF0aCBkPSJNMjAuMDIyIDE4LjEyNGMwLTIuMTI0LTEuMjgtMi44NTItMy44NC0zLjE1Ni0xLjgyOC0uMjM0LTIuMTk0LS43MDItMi4xOTQtMS41MTggMC0uODE2LjU0Ni0xLjM2MiAxLjYzMi0xLjM2MiAuOTc1IDAgMS41MjEuMzUxIDEuNzk0IDEuMjE4YS4zOS4zOSAwIDAgMCAuMzY0LjI3M2guODMyYS4zNjQuMzY0IDAgMCAwIC4zNjQtLjM5Yy0uMjM0LTEuNDMtMS4xNy0yLjMtMi42MTItMi41MzRWOS44NzJhLjM5LjM5IDAgMCAwLS4zOS0uMzloLS43OGEuMzkuMzkgMCAwIDAtLjM5LjM5di43OGMtMS41Ni4yNzMtMi41NzQgMS4zMjYtMi41NzQgMi43MyAwIDIuMDQ2IDEuMjQ4IDIuOCAzLjgwOCAzLjEwNCAxLjcxNi4yNzMgMi4yMS42NjMgMi4yMSAxLjU5NnMtLjc4IDEuNTYtMS45NSAxLjU2Yy0xLjUzIDAtMi4wNjctLjY2My0yLjI2Mi0xLjU2YS4zOS4zOSAwIDAgMC0uMzktLjMxMmgtLjg1OGEuMzkuMzkgMCAwIDAtLjM5LjM5Yy4xOTUgMS42MzggMS4zMjYgMi44IDMuMDQyIDMuMDd2LjgyYS4zOS4zOSAwIDAgMCAuMzkuMzloLjc4YS4zOS4zOSAwIDAgMCAuMzktLjM5di0uODJjMS43MTYtLjMxMiAyLjczLTEuNCAyLjczLTIuODg2eiIgZmlsbD0iI2ZmZiIvPjxwYXRoIGQ9Ik0xNiA0QzkuMzczIDQgNCA5LjM3MyA0IDE2czUuMzczIDEyIDEyIDEyIDEyLTUuMzczIDEyLTEyUzIyLjYyNyA0IDE2IDR6bTAgMjEuNzVjLTUuMzg1IDAtOS43NS00LjM2NS05Ljc1LTkuNzVTMTAuNjE1IDYuMjUgMTYgNi4yNSAyNS43NSAxMC42MTUgMjUuNzUgMTYgMjEuMzg1IDI1Ljc1IDE2IDI1Ljc1eiIgZmlsbD0iI2ZmZiIvPjwvc3ZnPg==" style="width:100%;height:100%;display:block;" alt=""></div>
+                    </div>
+                    <div>
+                        <div class="text-xl font-black">cirBTC / USDC</div>
+                        <div class="text-gray-400 text-xs mt-0.5">Circle LendingBorrowing &middot; 50% collateral factor</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="pool-badge text-green-400">🟢 Active</span>
+                    <span class="pool-badge text-yellow-400">~5% APR</span>
+                </div>
+            </div>
+
+            <!-- Reserve display same style -->
+            <div class="flex gap-3 mb-5">
+                <div class="flex-1 liq-input-wrap" style="padding:10px 14px;">
+                    <div class="text-xs text-gray-400 mb-1">Your cirBTC Balance</div>
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-sm" id="cirBTCBal">—</span>
+                        <span class="text-xs text-gray-400">cirBTC</span>
+                    </div>
+                </div>
+                <div class="flex-1 liq-input-wrap" style="padding:10px 14px;">
+                    <div class="text-xs text-gray-400 mb-1">Available to Borrow</div>
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold text-sm" id="borrowAvail">—</span>
+                        <span class="text-xs text-gray-400">USDC</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab switcher same style as add-liq-panel -->
+            <div class="flex gap-2 mb-5">
+                <button class="tab-btn active" id="tabDeposit" onclick="switchLendTab('deposit')">&#128176; Deposit</button>
+                <button class="tab-btn" id="tabBorrow" onclick="switchLendTab('borrow')">&#128197; Borrow</button>
+                <button class="tab-btn" id="tabRepay" onclick="switchLendTab('repay')">&#9989; Repay</button>
+                <button class="tab-btn" id="tabWithdraw" onclick="switchLendTab('withdraw')">&#8593; Withdraw</button>
+            </div>
+
+            <!-- DEPOSIT PANEL -->
+            <div id="panelDeposit">
+                <h4 class="font-bold mb-4 text-sm text-gray-300">Deposit cirBTC as Collateral</h4>
+                <div class="flex flex-col gap-3 mb-4">
+                    <div class="liq-input-wrap">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs text-gray-400">cirBTC Amount</span>
+                            <span class="text-xs text-gray-400">Balance: <span id="depositBalLabel">—</span> cirBTC &nbsp;<button onclick="setLendMax('deposit')" class="text-blue-400 hover:text-blue-300">MAX</button></span>
+                        </div>
+                        <input id="depositAmt" type="number" placeholder="0.00" min="0" step="0.0001" oninput="updateDepositPreview()">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-4 text-sm">
+                    <div class="pool-stat-pill" style="text-align:left; padding:10px 14px;">
+                        <div class="text-gray-400 text-xs">Max borrow after</div>
+                        <div class="font-bold mt-1" id="depositPreviewMax">—</div>
+                    </div>
+                    <div class="pool-stat-pill" style="text-align:left; padding:10px 14px;">
+                        <div class="text-gray-400 text-xs">Collateral factor</div>
+                        <div class="font-bold mt-1 text-green-400">50%</div>
+                    </div>
+                </div>
+                <button class="lend-main-btn" id="btnDeposit" onclick="doDeposit()" disabled>Connect Wallet</button>
+            </div>
+
+            <!-- BORROW PANEL -->
+            <div id="panelBorrow" style="display:none">
+                <h4 class="font-bold mb-4 text-sm text-gray-300">Borrow USDC against cirBTC (max 50%)</h4>
+                <div class="flex flex-col gap-3 mb-4">
+                    <div class="liq-input-wrap">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs text-gray-400">USDC Amount</span>
+                            <span class="text-xs text-gray-400">Available: <span id="borrowAvailLabel">—</span> USDC &nbsp;<button onclick="setLendMax('borrow')" class="text-blue-400 hover:text-blue-300">MAX</button></span>
+                        </div>
+                        <input id="borrowAmt" type="number" placeholder="0.00" min="0" step="1" oninput="updateBorrowPreview()">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-4 text-sm">
+                    <div class="pool-stat-pill" style="text-align:left; padding:10px 14px;">
+                        <div class="text-gray-400 text-xs">Interest rate</div>
+                        <div class="font-bold mt-1 text-yellow-400">~5% APR</div>
+                    </div>
+                    <div class="pool-stat-pill" style="text-align:left; padding:10px 14px;">
+                        <div class="text-gray-400 text-xs">Est. health factor</div>
+                        <div class="font-bold mt-1" id="borrowPreviewHF">—</div>
+                    </div>
+                </div>
+                <button class="lend-main-btn" id="btnBorrow" onclick="doBorrow()" disabled>Connect Wallet</button>
+            </div>
+
+            <!-- REPAY PANEL -->
+            <div id="panelRepay" style="display:none">
+                <h4 class="font-bold mb-4 text-sm text-gray-300">Repay USDC Loan</h4>
+                <div class="flex flex-col gap-3 mb-4">
+                    <div class="liq-input-wrap">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs text-gray-400">USDC Amount</span>
+                            <span class="text-xs text-gray-400">Outstanding: <span id="repayOwed">—</span> USDC &nbsp;<button onclick="setLendMax('repay')" class="text-blue-400 hover:text-blue-300">MAX</button></span>
+                        </div>
+                        <input id="repayAmt" type="number" placeholder="0.00" min="0" step="1">
+                    </div>
+                </div>
+                <button class="lend-main-btn" id="btnRepay" onclick="doRepay()" disabled>Connect Wallet</button>
+            </div>
+
+            <!-- WITHDRAW PANEL -->
+            <div id="panelWithdraw" style="display:none">
+                <h4 class="font-bold mb-4 text-sm text-gray-300">Withdraw cirBTC Collateral</h4>
+                <div class="text-xs text-yellow-400 mb-3">⚠️ Can only withdraw if you have no outstanding loan</div>
+                <div class="flex flex-col gap-3 mb-4">
+                    <div class="liq-input-wrap">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs text-gray-400">cirBTC Amount</span>
+                            <span class="text-xs text-gray-400">Deposited: <span id="withdrawMax">—</span> cirBTC &nbsp;<button onclick="setLendMax('withdraw')" class="text-blue-400 hover:text-blue-300">MAX</button></span>
+                        </div>
+                        <input id="withdrawAmt" type="number" placeholder="0.00" min="0" step="0.0001">
+                    </div>
+                </div>
+                <button class="lend-main-btn" id="btnWithdraw" onclick="doWithdraw()" disabled>Connect Wallet</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
 <!-- ============ EIJI AI AGENT ============ -->
 <div id="eijiView" class="gridbg">
     <div class="eiji-header">
@@ -1327,7 +1531,7 @@ nav button.glass { color: #fff; }
 
     /* ── View switching ── */
     function hideAllOverlays() {
-        ['portfolioView','swapView','poolsView','eijiView'].forEach(id => {
+        ['portfolioView','swapView','poolsView','eijiView','lendView'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.classList.remove('open');
         });
@@ -1335,7 +1539,7 @@ nav button.glass { color: #fff; }
     }
 
     function setNavActive(id) {
-        ['navHome','navPortfolio','navSwap','navPools','navEiji'].forEach(n => {
+        ['navHome','navPortfolio','navSwap','navPools','navEiji','navLend'].forEach(n => {
             const el = document.getElementById(n);
             if (!el) return;
             el.classList.remove('glass','nav-active');
@@ -1434,6 +1638,8 @@ nav button.glass { color: #fff; }
         USDC              : '0x3600000000000000000000000000000000000000',
         EURC              : '0x89B50855Aa3bE2F677cD6303Cec089B5F319D72a',
         USDT              : '0x175CdB1D338945f0D851A741ccF787D343E57952',
+        cirBTC            : '0xf0C4a4CE82A5746AbAAd9425360Ab04fbBA432BF',
+        LendingBorrowing  : 'DEPLOY_YOUR_CONTRACT_HERE',
     };
 
     /* Minimal ERC-20 ABI (approve + balanceOf + decimals) */
@@ -2455,6 +2661,8 @@ nav button.glass { color: #fff; }
 
     // Boot nav state
     setNavActive('navHome');
+    // If lendView is open and wallet connects, refresh
+    document.addEventListener('walletConnected', () => { if (document.getElementById('lendView').classList.contains('open')) refreshLendData(); });
 
     /* ══════════════════════════════════════════════════
        TOAST NOTIFICATION SYSTEM
@@ -2530,6 +2738,267 @@ nav button.glass { color: #fff; }
             progEl.style.animation = '';
         }
         if (duration > 0) setTimeout(() => removeToast(toast), duration);
+    }
+
+
+    /* ======= LEND & BORROW (arc-defi-lend-borrow) ======= */
+
+    const LEND_ABI = [
+        'function depositCollateral(uint256 amount)',
+        'function takeLoan(uint256 amount)',
+        'function repayLoan(uint256 amount)',
+        'function withdrawCollateral(uint256 amount)',
+        'function collateralBalances(address user) view returns (uint256)',
+        'function loans(address user) view returns (uint256 amount, uint256 collateral, bool isActive)',
+        'function collateralFactor() view returns (uint256)',
+    ];
+
+    const CIRBTC_ABI = [
+        'function balanceOf(address account) view returns (uint256)',
+        'function decimals() view returns (uint8)',
+        'function approve(address spender, uint256 amount) returns (bool)',
+        'function allowance(address owner, address spender) view returns (uint256)',
+    ];
+
+    // cirBTC uses 8 decimals (like real BTC), USDC uses 6
+    const CIRBTC_DECIMALS = 8;
+    const USDC_DECIMALS = 6;
+    // Assumed price for health factor calc (testnet — no oracle)
+    const CIRBTC_PRICE_USDC = 65000;
+
+    let lendUserData = { collateral: 0n, loanAmt: 0n, loanActive: false, cirBTCBal: 0n };
+
+    function showLend() {
+        hideAllOverlays();
+        document.getElementById('lendView').classList.add('open');
+        document.body.style.overflow = 'hidden';
+        setNavActive('navLend');
+        if (currentAccount) refreshLendData();
+    }
+
+    function switchLendTab(tab) {
+        ['deposit','borrow','repay','withdraw'].forEach(t => {
+            document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = t === tab ? '' : 'none';
+            document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('active', t === tab);
+        });
+    }
+
+    async function refreshLendData() {
+        if (!currentAccount) return;
+        try {
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const lend = new ethers.Contract(CONTRACT_ADDRS.LendingBorrowing, LEND_ABI, provider);
+            const cirBTC = new ethers.Contract(CONTRACT_ADDRS.cirBTC, CIRBTC_ABI, provider);
+
+            const [collBig, loanData, bal] = await Promise.all([
+                lend.collateralBalances(currentAccount),
+                lend.loans(currentAccount),
+                cirBTC.balanceOf(currentAccount),
+            ]);
+
+            lendUserData.collateral = collBig;
+            lendUserData.loanAmt = loanData.amount;
+            lendUserData.loanActive = loanData.isActive;
+            lendUserData.cirBTCBal = bal;
+
+            const collFloat = parseFloat(ethers.utils.formatUnits(collBig, CIRBTC_DECIMALS));
+            const loanFloat = parseFloat(ethers.utils.formatUnits(loanData.amount, USDC_DECIMALS));
+            const balFloat  = parseFloat(ethers.utils.formatUnits(bal, CIRBTC_DECIMALS));
+            const collValueUSDC = collFloat * CIRBTC_PRICE_USDC;
+            const maxBorrow = collValueUSDC * 0.5;
+
+            // Update stat cards
+            document.getElementById('lendCollateral').textContent = collFloat.toFixed(6);
+            document.getElementById('lendBorrowed').textContent = loanFloat.toFixed(2);
+            document.getElementById('lendMaxBorrow').textContent = maxBorrow.toFixed(2);
+            document.getElementById('cirBTCBal').textContent = balFloat.toFixed(6);
+            document.getElementById('depositBalLabel').textContent = balFloat.toFixed(6);
+            document.getElementById('borrowAvailLabel').textContent = Math.max(0, maxBorrow - loanFloat).toFixed(2);
+            document.getElementById('borrowAvail').textContent = Math.max(0, maxBorrow - loanFloat).toFixed(2);
+            document.getElementById('repayOwed').textContent = loanFloat.toFixed(2);
+            document.getElementById('withdrawMax').textContent = collFloat.toFixed(6);
+
+            // Health factor
+            if (loanFloat > 0) {
+                const hf = collValueUSDC * 0.5 / loanFloat;
+                const hfEl = document.getElementById('lendHFVal');
+                const hfLabel = document.getElementById('lendHFLabel');
+                const hfBar = document.getElementById('lendHFBar');
+                const badge = document.getElementById('lendHealthBadge');
+
+                if (hfEl) hfEl.textContent = hf.toFixed(2);
+                if (hfLabel) hfLabel.textContent = hf.toFixed(2);
+                const pct = Math.min(100, (hf / 2) * 100);
+                if (hfBar) hfBar.style.width = pct + '%';
+
+                const cls = hf < 1.1 ? 'lend-badge danger' : hf < 1.5 ? 'lend-badge warn' : 'lend-badge success';
+                if (badge) { badge.className = cls; badge.style.display = ''; }
+                document.getElementById('lendHFPanel').style.display = '';
+            } else {
+                document.getElementById('lendHealthBadge').style.display = 'none';
+                document.getElementById('lendHFPanel').style.display = 'none';
+            }
+
+            // Enable action buttons
+            ['btnDeposit','btnBorrow','btnRepay','btnWithdraw'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { el.disabled = false; el.textContent = id.replace('btn',''); }
+            });
+            document.getElementById('btnDeposit').textContent = 'Deposit cirBTC';
+            document.getElementById('btnBorrow').textContent = 'Borrow USDC';
+            document.getElementById('btnRepay').textContent = 'Repay USDC';
+            document.getElementById('btnWithdraw').textContent = 'Withdraw cirBTC';
+
+        } catch(e) {
+            console.error('refreshLendData error:', e);
+            if (CONTRACT_ADDRS.LendingBorrowing === 'DEPLOY_YOUR_CONTRACT_HERE') {
+                showToast('warning', 'Contract Not Set', 'Set LendingBorrowing contract address first', 5000);
+            }
+        }
+    }
+
+    function updateDepositPreview() {
+        const amt = parseFloat(document.getElementById('depositAmt').value) || 0;
+        document.getElementById('depositPreviewAmt').textContent = amt.toFixed(6) + ' cirBTC';
+        document.getElementById('depositPreviewMax').textContent = (amt * CIRBTC_PRICE_USDC * 0.5).toFixed(2) + ' USDC';
+    }
+
+    function updateBorrowPreview() {
+        const amt = parseFloat(document.getElementById('borrowAmt').value) || 0;
+        document.getElementById('borrowPreviewAmt').textContent = amt.toFixed(2) + ' USDC';
+        const collFloat = parseFloat(ethers.utils.formatUnits(lendUserData.collateral, CIRBTC_DECIMALS));
+        const collVal = collFloat * CIRBTC_PRICE_USDC;
+        const existingLoan = parseFloat(ethers.utils.formatUnits(lendUserData.loanAmt, USDC_DECIMALS));
+        const totalLoan = existingLoan + amt;
+        const hf = totalLoan > 0 ? (collVal * 0.5) / totalLoan : Infinity;
+        const hfEl = document.getElementById('borrowPreviewHF');
+        if (hfEl) {
+            hfEl.textContent = isFinite(hf) ? hf.toFixed(2) : '∞';
+            hfEl.className = hf < 1.1 ? 'text-red-400' : hf < 1.5 ? 'text-yellow-400' : 'text-green-400';
+        }
+    }
+
+    function setLendMax(type) {
+        if (type === 'deposit') {
+            const bal = parseFloat(ethers.utils.formatUnits(lendUserData.cirBTCBal, CIRBTC_DECIMALS));
+            document.getElementById('depositAmt').value = bal.toFixed(6);
+            updateDepositPreview();
+        } else if (type === 'borrow') {
+            const el = document.getElementById('borrowAvail');
+            if (el) document.getElementById('borrowAmt').value = parseFloat(el.textContent).toFixed(2);
+            updateBorrowPreview();
+        } else if (type === 'repay') {
+            const el = document.getElementById('repayOwed');
+            if (el) document.getElementById('repayAmt').value = parseFloat(el.textContent).toFixed(2);
+        } else if (type === 'withdraw') {
+            const el = document.getElementById('withdrawMax');
+            if (el) document.getElementById('withdrawAmt').value = parseFloat(el.textContent).toFixed(6);
+        }
+    }
+
+    async function lendEnsureApproval(tokenAddr, abi, spender, amountBig, signer) {
+        const token = new ethers.Contract(tokenAddr, abi, signer);
+        const allowance = await token.allowance(await signer.getAddress(), spender);
+        if (allowance.lt(amountBig)) {
+            const t = showToast('pending', 'Approval', 'Approving token...', 0);
+            const tx = await token.approve(spender, ethers.constants.MaxUint256);
+            await tx.wait();
+            if (t && t.remove) t.remove();
+        }
+    }
+
+    async function doDeposit() {
+        if (!currentAccount) return;
+        const amt = parseFloat(document.getElementById('depositAmt').value);
+        if (!amt || amt <= 0) return showToast('error', 'Invalid Amount', 'Enter a valid amount');
+        try {
+            document.getElementById('btnDeposit').disabled = true;
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const signer = provider.getSigner();
+            const amtBig = ethers.utils.parseUnits(amt.toFixed(CIRBTC_DECIMALS), CIRBTC_DECIMALS);
+            await lendEnsureApproval(CONTRACT_ADDRS.cirBTC, CIRBTC_ABI, CONTRACT_ADDRS.LendingBorrowing, amtBig, signer);
+            const lend = new ethers.Contract(CONTRACT_ADDRS.LendingBorrowing, LEND_ABI, signer);
+            const pending = showToast('pending', 'Depositing', 'Sending transaction...', 0);
+            const tx = await lend.depositCollateral(amtBig);
+            await tx.wait();
+            if (pending && pending.remove) pending.remove();
+            showToast('success', 'Deposited!', amt.toFixed(6) + ' cirBTC deposited as collateral');
+            document.getElementById('depositAmt').value = '';
+            await refreshLendData();
+        } catch(e) {
+            showToast('error', 'Deposit Failed', e.reason || e.message);
+        }
+        document.getElementById('btnDeposit').disabled = false;
+    }
+
+    async function doBorrow() {
+        if (!currentAccount) return;
+        const amt = parseFloat(document.getElementById('borrowAmt').value);
+        if (!amt || amt <= 0) return showToast('error', 'Invalid Amount', 'Enter a valid amount');
+        try {
+            document.getElementById('btnBorrow').disabled = true;
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const signer = provider.getSigner();
+            const amtBig = ethers.utils.parseUnits(amt.toFixed(USDC_DECIMALS), USDC_DECIMALS);
+            const lend = new ethers.Contract(CONTRACT_ADDRS.LendingBorrowing, LEND_ABI, signer);
+            const pending = showToast('pending', 'Borrowing', 'Sending transaction...', 0);
+            const tx = await lend.takeLoan(amtBig);
+            await tx.wait();
+            if (pending && pending.remove) pending.remove();
+            showToast('success', 'Borrowed!', amt.toFixed(2) + ' USDC sent to your wallet');
+            document.getElementById('borrowAmt').value = '';
+            await refreshLendData();
+        } catch(e) {
+            showToast('error', 'Borrow Failed', e.reason || e.message);
+        }
+        document.getElementById('btnBorrow').disabled = false;
+    }
+
+    async function doRepay() {
+        if (!currentAccount) return;
+        const amt = parseFloat(document.getElementById('repayAmt').value);
+        if (!amt || amt <= 0) return showToast('error', 'Invalid Amount', 'Enter a valid amount');
+        try {
+            document.getElementById('btnRepay').disabled = true;
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const signer = provider.getSigner();
+            const amtBig = ethers.utils.parseUnits(amt.toFixed(USDC_DECIMALS), USDC_DECIMALS);
+            await lendEnsureApproval(CONTRACT_ADDRS.USDC, ['function approve(address,uint256) returns(bool)','function allowance(address,address) view returns(uint256)'], CONTRACT_ADDRS.LendingBorrowing, amtBig, signer);
+            const lend = new ethers.Contract(CONTRACT_ADDRS.LendingBorrowing, LEND_ABI, signer);
+            const pending = showToast('pending', 'Repaying', 'Sending transaction...', 0);
+            const tx = await lend.repayLoan(amtBig);
+            await tx.wait();
+            if (pending && pending.remove) pending.remove();
+            showToast('success', 'Repaid!', amt.toFixed(2) + ' USDC repaid');
+            document.getElementById('repayAmt').value = '';
+            await refreshLendData();
+        } catch(e) {
+            showToast('error', 'Repay Failed', e.reason || e.message);
+        }
+        document.getElementById('btnRepay').disabled = false;
+    }
+
+    async function doWithdraw() {
+        if (!currentAccount) return;
+        const amt = parseFloat(document.getElementById('withdrawAmt').value);
+        if (!amt || amt <= 0) return showToast('error', 'Invalid Amount', 'Enter a valid amount');
+        try {
+            document.getElementById('btnWithdraw').disabled = true;
+            const provider = new ethers.providers.Web3Provider(window.ethereum);
+            const signer = provider.getSigner();
+            const amtBig = ethers.utils.parseUnits(amt.toFixed(CIRBTC_DECIMALS), CIRBTC_DECIMALS);
+            const lend = new ethers.Contract(CONTRACT_ADDRS.LendingBorrowing, LEND_ABI, signer);
+            const pending = showToast('pending', 'Withdrawing', 'Sending transaction...', 0);
+            const tx = await lend.withdrawCollateral(amtBig);
+            await tx.wait();
+            if (pending && pending.remove) pending.remove();
+            showToast('success', 'Withdrawn!', amt.toFixed(6) + ' cirBTC returned');
+            document.getElementById('withdrawAmt').value = '';
+            await refreshLendData();
+        } catch(e) {
+            showToast('error', 'Withdraw Failed', e.reason || e.message);
+        }
+        document.getElementById('btnWithdraw').disabled = false;
     }
 
     /* ======= EIJI AI AGENT ======= */
